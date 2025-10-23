@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection"></script>
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --success-color: #4cc9f0;
+            --danger-color: #f72585;
+            --light-bg: #f8f9fa;
+            --dark-bg: #212529;
+            --tab-bg: #ffffff;
+            --tab-active-bg: var(--primary-color);
+            --tab-text: #6c757d;
+            --tab-active-text: #ffffff;
+        }
+
+        body {
+            background-color: var(--light-bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .container {
+            max-width: 800px;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            background: white;
+            margin-bottom: 2rem;
+        }
+
+        .card-header {
+            background: none;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            padding: 1.5rem;
+        }
+
+        .card-body {
+            padding: 2rem;
+        }
+
+        .form-control {
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.1);
+        }
+
+        .camera-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            background-color: #000;
+            min-height: 360px;
+            position: relative;
+        }
+
+        .camera-container video,
+        .preview-container img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border-radius: 15px;
+            transform: scaleX(-1);
+            object-fit: cover;
+        }
+
+        /* Face detection box styles */
+        .face-detection-box {
+            position: absolute;
+            border: 3px solid;
+            transition: all 0.2s ease-out;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        .face-detection-box.searching {
+            border-color: #dc3545;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .face-detection-box:not(.searching) {
+            border-color: #28a745;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.02); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .face-landmarks {
+            position: absolute;
+            pointer-events: none;
+            z-index: 100;
+            transform: scaleX(-1);
+        }
+
+        .face-landmark {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background-color: #2ecc71;
+            position: absolute;
+        }
+
+        .emotion-display {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            text-align: center;
+            z-index: 1000;
+            transition: all 0.1s ease-out;
+            transform: translateY(8px);
+            width: 100%;
+            pointer-events: none;
+        }
+        
+        .emotion-display .name {
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #2ecc71;
+            font-size: 16px;
+            text-transform: capitalize;
+        }
+        
+        .emotion-display .emotion {
+            font-size: 14px;
+            opacity: 0.9;
+            color: #fff;
+            text-transform: capitalize;
+        }
+
+        .preview-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .preview-container.hidden {
+            display: none;
+        }
+
+        #regVideo, #attVideo {
+            display: block;
+            width: 100%;
+        }
+
+        .camera-controls {
+            margin-top: 1.5rem;
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        .btn-circle {
+            width: 60px;
+            height: 60px;
+            padding: 0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-circle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4cc9f0, #4895ef);
+            border: none;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #f72585, #b5179e);
+            border: none;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .tab-content {
+            margin-top: 20px;
+        }
+
+        .page-title {
+            color: var(--dark-bg);
+            font-weight: 600;
+            margin-bottom: 2rem;
+            text-align: center;
+            display: none;
+        }
+
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .submit-btn {
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .processing-section {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            border-radius: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .progress {
+            height: 10px;
+            border-radius: 10px;
+            background-color: #e9ecef;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+            border-radius: 10px;
+        }
+
+        .result-section {
+            margin: 2rem 0;
+        }
+
+        .result-card {
+            padding: 1.5rem;
+            border-radius: 10px;
+            background-color: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            animation: slideDown 0.5s ease-out;
+        }
+
+        .emotion-display {
+            display: flex;
+            align-items: center;
+            font-size: 1.2rem;
+        }
+
+        .time-display {
+            font-size: 1rem;
+            color: #6c757d;
+        }
+
+        @keyframes slideDown {
+            from { 
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Custom Tab Styling */
+        .nav-pills .nav-link {
+            border-radius: 50px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            color: var(--tab-text);
+            background-color: var(--tab-bg);
+            transition: all 0.3s ease;
+            margin: 0 0.5rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .nav-pills .nav-link.active {
+            background-color: var(--tab-active-bg);
+            color: var(--tab-active-text);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .nav-pills .nav-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .nav-pills .nav-item {
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .nav-pills .nav-link {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+            }
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            overflow: hidden;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .camera-feed {
+            width: 100%;
+            transform: scaleX(-1);
+            border-radius: 10px;
+        }
+
+        /* Real-time detection results styles */
+        #detectionResults {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            display: flex;
+            gap: 20px;
+            z-index: 1000;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .result-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 120px;
+        }
+        
+        .result-label {
+            font-size: 0.8em;
+            opacity: 0.8;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .result-value {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        /* Control buttons */
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn.active {
+            background-color: #dc3545;
+            border-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Tabs -->
+        <ul class="nav nav-pills nav-fill mb-4">
+            <li class="nav-item">
+                <a class="nav-link active" id="registerTab" href="#register">
+                    <i class="fas fa-user-plus me-2"></i>Register
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="attendanceTab" href="#attendance">
+                    <i class="fas fa-clock me-2"></i>Attendance
+                </a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Registration Tab -->
+            <div class="tab-pane fade show active" id="register">
+                <div class="card fade-in">
+                    <div class="card-body">
+                        <form id="registrationForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="name" class="form-label">Full Name</label>
+                                    <input type="text" class="form-control" id="name" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="phone" class="form-label">Phone Number</label>
+                                    <input type="tel" class="form-control" id="phone" required>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <label for="email" class="form-label">Email Address</label>
+                                <input type="email" class="form-control" id="email" required>
+                            </div>
+                            
+                            <div class="video-container mb-4">
+                                <video id="regVideo" class="camera-feed hidden" autoplay playsinline></video>
+                                <div id="regFaceBox" class="face-detection-box hidden"></div>
+                                <div id="regPreviewContainer" class="preview-container hidden">
+                                    <img id="regPreviewImage" class="preview-image" alt="Preview">
+                                </div>
+                                <input type="hidden" id="regImageBlob" name="image">
+                            </div>
+                            
+                            <div class="camera-controls mb-4">
+                                <button type="button" id="regStartCamera" class="btn btn-primary btn-circle camera-btn">
+                                    <i class="fas fa-camera"></i>
+                                </button>
+                                <button type="button" id="regCaptureBtn" class="btn btn-success btn-circle hidden">
+                                    <i class="fas fa-circle"></i>
+                                </button>
+                                <button type="button" id="regRetakeBtn" class="btn btn-danger btn-circle hidden">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-primary submit-btn">
+                                    <i class="fas fa-user-check me-2"></i>Complete Registration
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Tab -->
+            <div class="tab-pane fade" id="attendance">
+                <div class="card fade-in">
+                    <div class="card-body">
+                        <form id="attendanceForm">
+                            <div class="video-container mb-4">
+                                <video id="attVideo" class="camera-feed" autoplay playsinline></video>
+                                <div id="attFaceBox" class="face-detection-box hidden"></div>
+                                <div id="attPreviewContainer" class="preview-container hidden">
+                                    <img id="attPreviewImage" alt="Preview">
+                                </div>
+                            </div>
+                            
+                            <div class="camera-controls mb-4">
+                                <button id="attStartCamera" class="btn btn-primary">
+                                    <i class="fas fa-camera"></i> Start Camera
+                                </button>
+                                <button id="attCaptureBtn" class="btn btn-success hidden">
+                                    <i class="fas fa-camera"></i> Capture
+                                </button>
+                                <button id="attRetakeBtn" class="btn btn-warning hidden">
+                                    <i class="fas fa-redo"></i> Retake
+                                </button>
+                                <button id="liveDetectBtn" class="btn btn-info">
+                                    <i class="fas fa-video"></i> Start Live Detection
+                                </button>
+                            </div>
+
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-primary submit-btn">
+                                    <i class="fas fa-check-circle me-2"></i>Mark Attendance
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add real-time detection results container -->
+    <div id="detectionResults" class="hidden">
+        <div class="result-item">
+            <span class="result-label">Emotion</span>
+            <span id="emotionDisplay" class="result-value">-</span>
+        </div>
+        <div class="result-item">
+            <span class="result-label">Identity</span>
+            <span id="identityDisplay" class="result-value">-</span>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
